@@ -1,0 +1,45 @@
+#!/bin/bash
+ 
+git status >/dev/null
+[ $? -ne 0 ] && exit 1
+ 
+reset="\033[0m"
+red="\033[0;31m"
+green="\033[0;32m"
+blue="\033[0;34m"
+ 
+filter_submodules() {
+    read out
+ 
+    git submodule foreach 'out=$(echo $out | grep -v $(basename $(pwd)))'
+ 
+    echo out
+}
+ 
+# git diff - lines added/modified/removed in tracked files
+added=$(git diff --word-diff | grep '^{+.*+}$' | wc -l | awk '{print $1}')
+modified=$(git diff --word-diff | grep -v '^\w*{+.*+}\w*$' | grep -v '^\w*\[-.*-\]\w*$' | \
+         grep '{+.*+}\|\[-.*-\]' | wc -l | awk '{print $1}')
+removed=$(git diff --word-diff | grep '^\w*\[-.*-\]\w*$' | wc -l | awk '{print $1}')
+ 
+deleted_files=$(git status -sb | grep '^ D' | awk '{print $2}')
+ 
+# New files
+added_files=$(find $(git status -sb | grep '^??' | awk '{print $2}') -type f 2>/dev/null)
+ 
+for i in $(git status -sb | grep '^\w*\?\?' | filter_submodules | awk '{print $2}') ; do
+    [ -n $i ] && [ -d $i ] && added_files="$added_files $(find $i -type f 2>/dev/null) "
+done
+ 
+if [ -n "$added_files" ]
+then
+    added=$(( $added + $(cat $added_files 2>/dev/null | wc -l) ))
+fi
+ 
+for file in $deleted_files ; do
+    removed=$(( $removed + $(git show HEAD:$file | wc -l) ))
+done
+ 
+echo "## $(git rev-parse HEAD)"
+git status -sb
+printf "$green$added$reset/$blue$modified$reset/$red$removed$reset\n"
