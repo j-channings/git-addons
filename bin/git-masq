@@ -1,0 +1,76 @@
+#!/bin/bash
+
+_add_usage="git masq add <alias> <author name> <author email>"
+_remove_usage="git masq remove <alias>"
+
+_list() {
+    git config -l | awk -F'.' '/^masq\.(.*)\.name/ {print $2}'
+}
+
+_add() {
+    local masq_alias="$1"
+    local author_name="$2"
+    local author_email="$3"
+
+    if [ -n "${masq_alias}" ] && [ -n "${author_name}" ] && [ -n "${author_email}" ] ; then
+        git config --global masq."${masq_alias}".name "${author_name}"
+        git config --global masq."${masq_alias}".email "${author_email}"
+    else
+        echo "Usage: ${_add_usage}"
+    fi
+}
+
+_remove() {
+    local masq_alias="$1"
+
+    if [ -n "${masq_alias}" ] ; then
+        git config --global --remove-section masq."${masq_alias}"
+    else
+        echo "Usage: ${_remove_usage}"
+    fi
+}
+
+_help() {
+    echo "Usage: git masq <alias> ... (append normal git command)"
+    echo "       git masq list"
+    echo "       ${_add_usage}"
+    echo "       ${_remove_usage}"
+}
+
+case "$1" in
+    add)
+        _add "$2" "$3" "$4"
+        ;;
+
+    remove)
+        _remove "$2"
+        ;;
+
+    list)
+        _list
+        ;;
+
+    "")
+        _help
+        ;;
+
+    help)
+        _help
+        ;;
+
+    *)
+        masq_alias="$1"
+        shift
+
+        export GIT_AUTHOR_NAME="$(git config masq."${masq_alias}".name)"
+        export GIT_AUTHOR_EMAIL="$(git config masq."${masq_alias}".email)"
+
+        if [ -n "$GIT_AUTHOR_NAME" ] && [ -n "$GIT_AUTHOR_EMAIL" ] ; then
+            git $@
+        else
+            echo "No masquerade defined for '${masq_alias}'. Do a masq add"
+            exit 1
+        fi
+        ;;
+esac
+
